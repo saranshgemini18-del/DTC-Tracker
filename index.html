@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DTC Real-Time Radar</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body, html { width:100%; height:100%; overflow:hidden; background: #0b1120; }
+    #map { width:100%; height:100%; }
+
+    .top-container {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 450px;
+    }
+
+    .top-bar {
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .pulse {
+      width: 10px; height: 10px; background: #22c55e; border-radius: 50%;
+      box-shadow: 0 0 10px #22c55e;
+      animation: blink 1.2s infinite ease-in-out;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .search-box {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .search-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .search-box input::placeholder {
+      color: #94a3b8;
+    }
+    .clear-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #cbd5e1;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .bottom-card {
+      position: absolute;
+      bottom: 16px;
+      left: 12px;
+      right: 12px;
+      max-width: 450px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 18px;
+      padding: 16px;
+      color: white;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+    .nearest-name { font-size: 16px; font-weight: 700; color: #38bdf8; margin-top: 4px; }
+    .nearest-dist { font-size: 13px; color: #cbd5e1; margin-top: 2px; }
+
+    .locate-btn {
+      position: absolute;
+      right: 16px;
+      bottom: 125px;
+      z-index: 1000;
+      background: #3b82f6;
+      border: none;
+      color: white;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      font-size: 22px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .leaflet-marker-icon.smooth-bus {
+      transition: transform 9.5s linear !important;
+    }
+
+    .bus-chip {
+      background: #dc2626;
+      color: white;
+      border: 2px solid white;
+      border-radius: 14px;
+      padding: 2px 7px;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+      white-space: nowrap;
+    }
+
+    .user-dot {
+      background: #3b82f6;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      box-shadow: 0 0 15px #3b82f6;
+    }
+
+    .stop-dot {
+      background: #d97706;
+      border: 2px solid white;
+      border-radius: 6px;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .popup-box {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1e293b;
+      min-width: 190px;
+    }
+    .popup-route {
+      font-size: 15px;
+      font-weight: 800;
+      color: #dc2626;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+    }
+    .eta-badge {
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 6px 8px;
+      border-radius: 8px;
+      margin-top: 8px;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-container">
+    <div class="top-bar">
+      <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;">
+        <div class="pulse"></div>
+        <span id="counter">Scanning DTC radar...</span>
+      </div>
+      <span id="stops-counter" style="font-size: 11px; background: rgba(255,255,255,0.15); padding: 4px 8px; border-radius: 8px;">Finding stops...</span>
+    </div>
+
+    <div class="search-box">
+      <span style="font-size: 16px;">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search Route (e.g. 534) or Stop..." oninput="handleSearch()">
+      <button class="clear-btn" id="clearBtn" onclick="clearSearch()">✕</button>
+    </div>
+  </div>
+
+  <button class="locate-btn" onclick="trackUserLocation()">📍</button>
+  <div id="map"></div>
+
+  <div class="bottom-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700;">Nearest Bus Stop</span>
+      <span id="walk-time" style="font-size:12px; color:#22c55e; font-weight:600;">--</span>
+    </div>
+    <div class="nearest-name" id="stop-name">Locating you...</div>
+    <div class="nearest-dist" id="stop-distance">Tap 📍 to find nearest bus stop</div>
+  </div>
+
+  <script>
+    const map = L.map('map', { zoomControl: false }).setView([28.6139, 77.2090], 13);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    let busMarkers = {};
+    let stopMarkers = [];
+    let allLiveBuses = [];
+    let currentStops = [];
+    let userMarker = null;
+    let searchQuery = "";
+
+    function renderBusPopup(b) {
+      return `
+        <div class="popup-box">
+          <div class="popup-route">🚌 Route: ${b.route}</div>
+          <div style="font-size:12px; color:#475569;"><b>Bus ID:</b> ${b.id}</div>
+          <div style="font-size:12px; color:#475569;"><b>Live Speed:</b> ${b.speed} km/h</div>
+          
+          <div class="eta-badge">
+            <span style="color:#94a3b8; font-size:10px; text-transform:uppercase;">Next Stop</span>
+            <b style="color:#ffffff; font-size:13px;">${b.nextStop}</b>
+            <div style="display:flex; justify-content:space-between; margin-top:3px; color:#4ade80; font-weight:700;">
+              <span>⏱️ in ${b.etaMins} mins</span>
+              <span>🕒 ${b.etaTime}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStopPopup(s) {
+      return `
+        <div class="popup-box">
+          <div style="font-weight:700; font-size:13px; color:#b45309;">🚏 Bus Stop</div>
+          <div style="font-weight:800; font-size:14px; margin-top:2px;">${s.name}</div>
+          <div style="color:#64748b; font-size:11px; margin-top:3px;">Distance: ${s.distance}m</div>
+        </div>
+      `;
+    }
+
+    function fetchNearbyStops(lat, lng) {
+      fetch(`/api/nearby-stops?lat=${lat}&lng=${lng}`)
+        .then(res => res.json())
+        .then(stops => {
+          stopMarkers.forEach(m => map.removeLayer(m));
+          stopMarkers = [];
+          currentStops = stops || [];
+
+          if (currentStops.length > 0) {
+            const nearest = currentStops[0];
+            document.getElementById('stop-name').innerText = nearest.name;
+            const kmStr = nearest.distance >= 1000 ? (nearest.distance / 1000).toFixed(1) + ' km away' : nearest.distance + ' meters away';
+            document.getElementById('stop-distance').innerText = `Distance: ${kmStr}`;
+            document.getElementById('walk-time').innerText = `~${Math.round(nearest.distance / 80)} min walk`;
+            document.getElementById('stops-counter').innerText = `${currentStops.length} Stops Located`;
+
+            currentStops.forEach(s => {
+              const stopIcon = L.divIcon({
+                className: 'stop-icon',
+                html: '<div class="stop-dot">🚏</div>',
+                iconSize: [22, 22],
+                iconAnchor: [11, 11]
+              });
+              const m = L.marker([s.lat, s.lng], { icon: stopIcon })
+                .addTo(map)
+                .bindPopup(renderStopPopup(s));
+              m.stopData = s;
+              stopMarkers.push(m);
+            });
+          }
+        });
+    }
+
+    function applyBusMarkers() {
+      const q = searchQuery.trim().toLowerCase();
+      let matchedCount = 0;
+      let firstMatchCoords = null;
+
+      allLiveBuses.forEach(b => {
+        const routeMatch = b.route.toLowerCase().includes(q);
+        const nextStopMatch = b.nextStop.toLowerCase().includes(q);
+        const isMatch = q === "" || routeMatch || nextStopMatch;
+
+        if (busMarkers[b.id]) {
+          if (isMatch) {
+            busMarkers[b.id].addTo(map);
+            busMarkers[b.id].setLatLng([b.lat, b.lng]);
+            busMarkers[b.id].getPopup().setContent(renderBusPopup(b));
+            matchedCount++;
+            if (!firstMatchCoords) firstMatchCoords = [b.lat, b.lng];
+          } else {
+            map.removeLayer(busMarkers[b.id]);
+          }
+        } else if (isMatch) {
+          const bIcon = L.divIcon({
+            className: 'smooth-bus',
+            html: `<div class="bus-chip">🚌 ${b.route}</div>`,
+            iconSize: [60, 24],
+            iconAnchor: [30, 12]
+          });
+
+          const marker = L.marker([b.lat, b.lng], { icon: bIcon })
+            .addTo(map)
+            .bindPopup(renderBusPopup(b));
+
+          busMarkers[b.id] = marker;
+          matchedCount++;
+          if (!firstMatchCoords) firstMatchCoords = [b.lat, b.lng];
+        }
+      });
+
+      if (q !== "") {
+        document.getElementById('counter').innerText = `${matchedCount} buses matching "${q}"`;
+      } else {
+        document.getElementById('counter').innerText = `${allLiveBuses.length} DTC Buses Active`;
+      }
+
+      return firstMatchCoords;
+    }
+
+    function handleSearch() {
+      const input = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('clearBtn');
+      searchQuery = input.value.trim().toLowerCase();
+
+      clearBtn.style.display = searchQuery ? 'flex' : 'none';
+
+      const matchedStop = stopMarkers.find(m => m.stopData && m.stopData.name.toLowerCase().includes(searchQuery));
+      if (searchQuery && matchedStop) {
+        map.flyTo(matchedStop.getLatLng(), 16, { duration: 1.2 });
+        matchedStop.openPopup();
+        return;
+      }
+
+      const targetCoords = applyBusMarkers();
+      if (searchQuery && targetCoords) {
+        map.flyTo(targetCoords, 14, { duration: 1.2 });
+      }
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = "";
+      document.getElementById('clearBtn').style.display = 'none';
+      searchQuery = "";
+      applyBusMarkers();
+    }
+
+    function trackUserLocation() {
+      if (!navigator.geolocation) return;
+
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+
+        if (!userMarker) {
+          const userIcon = L.divIcon({
+            className: 'user-icon',
+            html: '<div class="user-dot"></div>',
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+          });
+          userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(map);
+        } else {
+          userMarker.setLatLng([latitude, longitude]);
+        }
+
+        map.flyTo([latitude, longitude], 14, { duration: 1.2 });
+        fetchNearbyStops(latitude, longitude);
+      }, () => {
+        fetchNearbyStops(28.6139, 77.2090);
+      }, { enableHighAccuracy: true });
+    }
+
+    fetchNearbyStops(28.6139, 77.2090);
+    trackUserLocation();
+
+    const ws = new WebSocket(`ws://${window.location.host}`);
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'BUSES') {
+        allLiveBuses = data.buses || [];
+        applyBusMarkers();
+      }
+    };
+  </script>
+</body>
+</html>
